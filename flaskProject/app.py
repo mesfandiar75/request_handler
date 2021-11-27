@@ -7,40 +7,40 @@ app = Flask(__name__)
 DATABASE_URL = 'sqlite:///dev.db'
 
 
-def update_request(request_status):
+def update_request(request_status, request_id):
     db = dataset.connect(DATABASE_URL)
-    # if request_status is "run" the requests that status was "queue" change to "run"
+    # if request_status is "run" the request that status was "queue" change to "run"
     if request_status == 'run':
         requests = db.query(f'''select * from request
                                     where request_status = "queue"
                                     order by request_weight asc, request_id asc''')
         requests_dict = jsonify({'result': [dict(row) for row in requests]}).json
         if requests_dict['result']:
-            update_data = {'request_id': requests_dict['result'][0]['request_id'], 'request_status': request_status}
+            update_data = {'request_id': request_id, 'request_status': request_status}
             db['request'].update(update_data, ['request_id'])
 
-    # if request_status is "finished" the requests that status was "run" change to "finished"
+    # if request_status is "finished" the request that status was "run" change to "finished"
     elif request_status == 'finished':
         requests = db.query(f'''select * from request
                                 where request_status = "run"
                                 order by request_weight asc, request_id asc''')
         requests_dict = jsonify({'result': [dict(row) for row in requests]}).json
         if requests_dict['result']:
-            update_data = {'request_id': requests_dict['result'][0]['request_id'], 'request_status': request_status}
+            update_data = {'request_id': request_id, 'request_status': request_status}
             db['request'].update(update_data, ['request_id'])
     return True
 
 
-def limited_f(x):
+def limited_f(x, request_id):
     # change request status to "run"
-    thread_update = multiprocessing.Process(target=update_request, args=('run',))
+    thread_update = multiprocessing.Process(target=update_request, args=('run', request_id))
     thread_update.start()
     time.sleep(10)
 
     # do some thing with x
 
     # change request status to "finished"
-    thread = multiprocessing.Process(target=update_request, args=('finished',))
+    thread = multiprocessing.Process(target=update_request, args=('finished', request_id))
     thread.start()
 
     # call request handler for continue the process
@@ -60,7 +60,7 @@ def request_handler():
 
     # call limited_f
     if requests_dict['result']:
-        limited_f(requests_dict['result'][0]['x'])
+        limited_f(requests_dict['result'][0]['x'], requests_dict['result'][0]['request_id'])
 
     return True
 
